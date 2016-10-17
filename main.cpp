@@ -481,6 +481,16 @@ void FsLazyWindowApplication::findAnchorVertices()
 				auto plVtHd=shl.GetPolygonVertex(plHd);
 				if(3<=plVtHd.GetN())
 				{
+					std
+					for(int i=0;i<uniquelyLabeledPolygons.size();i++)
+					{
+						auto neiplVtHd=shl.GetPolygonVertex(uniquelyLabeledPolygons[i]);
+						if(3<=neiplVtHd.GetN())
+						{
+				}
+			
+				/*if(3<=plVtHd.GetN())
+				{
 					std::vector<float> plHdVtx;
 					for(int i=0;i<plVtHd.GetN();i++)
 					{
@@ -507,7 +517,7 @@ void FsLazyWindowApplication::findAnchorVertices()
 							neiplHdVtx.push_back(tempNeiplHdVtx);
 						}
 					}
-				}
+				}*/
 			}
 		}			
 	}

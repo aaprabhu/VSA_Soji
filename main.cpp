@@ -47,6 +47,7 @@ protected:
 	// VSA
 	std::vector<Proxy> proxy;
 	std::vector<YsShell::PolygonHandle>temppoly;
+	std::vector<YsShell::PolygonHandle>anchorplHd;
 	int numberOfProxies;
 	HashTable <Proxy,std::vector <YsShell::PolygonHandle> > proxyToTriangles;
 	HashTable <YSHASHKEY,int> polygonToLabel;
@@ -81,6 +82,7 @@ public:
 	void makeCluster();
 	void updateColour();
 	bool checkIfHashTableFilled();
+	void findAnchorVertices()
 
 
 	// Inclas function
@@ -422,6 +424,49 @@ void FsLazyWindowApplication::makeCluster(void)
 	for (int i = 0; i < numberOfProxies; i++)
 	{
 		proxyToTriangles.Update(proxy[i],proxyToPoly[i]);
+	}
+}
+void FsLazyWindowApplication::findAnchorVertices()
+{
+	for(auto plhd: shl.AllPolygon())
+	{
+		if(*polygonToLabel[shl.GetSearchKey(plHd]==-1)
+		{
+			// Get the number of neighbours
+			const int numNeighbours =  shl.GetPolygonNumVertex(plHd);
+			int neiLabel[numNeighbours + 1];
+			for(int i=0;i<numNeighbours+1;i++)
+			{
+				neiLabel[i] = -1;
+			}
+			neiLabel[0] = *polygonToLabel[shl.GetSearchKey(plHd)];
+			// For each neighbours
+			for(int j=0;j<numNeighbours;j++)
+			{
+				// Get the neighbours
+				auto neiplHd = shl.GetNeighborPolygon(plHd,j);
+				if (neiplHd!=nullptr)
+				{	
+					neiLabel[j+1] = *polygonToLabel[shl.GetSearchKey(neiplHd)];	
+				}
+			}
+			int sum=0;
+			for(int i=0;i<numNeighbours;i++)
+			{
+				for(int j=i+1;j<numNeighbours+1;j++)
+				{
+					if(neiLabel[i]!=neiLabel[j])
+						sum+=0;
+					
+				}
+				if(sum>=3)
+				{
+					anchorplHd.push_back(plhd);
+					break;
+				}
+			}
+		}
+					
 	}
 }
 // Need to be changed since it does not have all the colours or the 4 colour mapping

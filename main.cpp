@@ -18,6 +18,7 @@
 #include "VsaQueue.h"
 #include "Pqueue.h"
 
+// trying something out
 class FsLazyWindowApplication : public FsLazyWindowApplicationBase
 {
 protected:

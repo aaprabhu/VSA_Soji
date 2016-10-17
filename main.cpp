@@ -47,7 +47,7 @@ protected:
 	// VSA
 	std::vector<Proxy> proxy;
 	std::vector<YsShell::PolygonHandle>temppoly;
-	std::vector<YsShell::PolygonHandle>anchorplHd;
+	std::vector<YsShell::VertexHandle>anchorVtx;
 	int numberOfProxies;
 	HashTable <Proxy,std::vector <YsShell::PolygonHandle> > proxyToTriangles;
 	HashTable <YSHASHKEY,int> polygonToLabel;
@@ -451,22 +451,65 @@ void FsLazyWindowApplication::findAnchorVertices()
 				}
 			}
 			int sum=0;
-			for(int i=0;i<numNeighbours;i++)
+			std::vector <YsShell::PolygonHandle> uniquelyLabeledPolygons;
+			uniquelyLabeledPolygons.push_back(plHd);
+			for(int i=1;i<numNeighbours+1;i++)
 			{
-				for(int j=i+1;j<numNeighbours+1;j++)
+				bool isUniqueLabel = true;
+				for(int j=1;j<i;j++)
 				{
 					if(neiLabel[i]!=neiLabel[j])
-						sum+=0;
-					
+						isUniqueLabel = true;
+					else	
+					{	
+						isUniqueLabel = false;
+						break;
+					}
 				}
-				if(sum>=3)
+				if(isUniqueLabel && abs(neiLabel[i]-neiLabel[0])>0)
 				{
-					anchorplHd.push_back(plhd);
-					break;
+					auto neiplHd = shl.GetNeighborPolygon(plHd,i-1);
+					uniquelyLabeledPolygons.push_back(neiplHd);
+					sum+=1;
+					if(sum>=2)
+						break;
 				}
 			}
-		}
-					
+			if(sum>=2)
+			{
+				// find common vertex of uniquelyLabeled Polygons;
+				auto plVtHd=shl.GetPolygonVertex(plHd);
+				if(3<=plVtHd.GetN())
+				{
+					std::vector<float> plHdVtx;
+					for(int i=0;i<plVtHd.GetN();i++)
+					{
+						auto vtPos = shl.getVertexPosition(plVtHd[i]);
+						plHdVtx.push_back(vtPos.xf());
+						plHdVtx.push_back(vtPos.yf());
+						plHdVtx.push_back(vtPos.yf());
+					}
+					std::vector<std::vector<float> > neiplHdVtx;
+					for(int i=0;i<numNeighbours;i++)
+					{
+						auto neiplHd = shl.GetNeighborPolygon(plHd,i-1);
+						auto neiplVtHd=shl.GetPolygonVertex(neiplHd);
+						if(3<=neiplVtHd.GetN())
+						{
+							std::vector<float> tempNeiplHdVtx;
+							for(int i=0;i<neiplVtHd.GetN();i++)
+							{
+								auto vtPos = shl.getVertexPosition(neiplVtHd[i]);
+								tempNeiplHdVtx.push_back(vtPos.xf());
+								tempNeiplHdVtx.push_back(vtPos.yf());
+								tempNeiplHdVtx.push_back(vtPos.yf());
+							}
+							neiplHdVtx.push_back(tempNeiplHdVtx);
+						}
+					}
+				}
+			}
+		}			
 	}
 }
 // Need to be changed since it does not have all the colours or the 4 colour mapping

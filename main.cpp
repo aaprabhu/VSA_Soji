@@ -481,12 +481,14 @@ void FsLazyWindowApplication::findAnchorVertices()
 				auto plVtHd=shl.GetPolygonVertex(plHd);
 				if(3<=plVtHd.GetN())
 				{
-					std
+					std::vector <YsShell::VertexHandle>
 					for(int i=0;i<uniquelyLabeledPolygons.size();i++)
 					{
 						auto neiplVtHd=shl.GetPolygonVertex(uniquelyLabeledPolygons[i]);
 						if(3<=neiplVtHd.GetN())
 						{
+						}
+					}
 				}
 			
 				/*if(3<=plVtHd.GetN())

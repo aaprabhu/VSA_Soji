@@ -98,7 +98,7 @@ public:
 	virtual long long int GetMinimumSleepPerInterval(void) const;
 	virtual bool NeedRedraw(void) const;
 };
-// Hashcode for the Hastables
+// Hashcode for the Hastables 
 template <>
 unsigned long long int HashTable<Proxy,std::vector<YsShell::PolygonHandle>>::HashCode(const Proxy &key) const
 {		

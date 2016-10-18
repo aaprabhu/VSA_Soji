@@ -47,6 +47,7 @@ protected:
 	// VSA
 	std::vector<Proxy> proxy;
 	std::vector<YsShell::PolygonHandle>temppoly;
+	std::vector<YsShell::VertexHandle>anchorVtx;
 	int numberOfProxies;
 	HashTable <Proxy,std::vector <YsShell::PolygonHandle> > proxyToTriangles;
 	HashTable <YSHASHKEY,int> polygonToLabel;
@@ -81,6 +82,7 @@ public:
 	void makeCluster();
 	void updateColour();
 	bool checkIfHashTableFilled();
+	void findAnchorVertices()
 
 
 	// Inclas function
@@ -96,7 +98,7 @@ public:
 	virtual long long int GetMinimumSleepPerInterval(void) const;
 	virtual bool NeedRedraw(void) const;
 };
-// Hashcode for the Hastables
+// Hashcode for the Hastables 
 template <>
 unsigned long long int HashTable<Proxy,std::vector<YsShell::PolygonHandle>>::HashCode(const Proxy &key) const
 {		
@@ -422,6 +424,104 @@ void FsLazyWindowApplication::makeCluster(void)
 	for (int i = 0; i < numberOfProxies; i++)
 	{
 		proxyToTriangles.Update(proxy[i],proxyToPoly[i]);
+	}
+}
+void FsLazyWindowApplication::findAnchorVertices()
+{
+	for(auto plhd: shl.AllPolygon())
+	{
+		if(*polygonToLabel[shl.GetSearchKey(plHd]==-1)
+		{
+			// Get the number of neighbours
+			const int numNeighbours =  shl.GetPolygonNumVertex(plHd);
+			int neiLabel[numNeighbours + 1];
+			for(int i=0;i<numNeighbours+1;i++)
+			{
+				neiLabel[i] = -1;
+			}
+			neiLabel[0] = *polygonToLabel[shl.GetSearchKey(plHd)];
+			// For each neighbours
+			for(int j=0;j<numNeighbours;j++)
+			{
+				// Get the neighbours
+				auto neiplHd = shl.GetNeighborPolygon(plHd,j);
+				if (neiplHd!=nullptr)
+				{	
+					neiLabel[j+1] = *polygonToLabel[shl.GetSearchKey(neiplHd)];	
+				}
+			}
+			int sum=0;
+			std::vector <YsShell::PolygonHandle> uniquelyLabeledPolygons;
+			uniquelyLabeledPolygons.push_back(plHd);
+			for(int i=1;i<numNeighbours+1;i++)
+			{
+				bool isUniqueLabel = true;
+				for(int j=1;j<i;j++)
+				{
+					if(neiLabel[i]!=neiLabel[j])
+						isUniqueLabel = true;
+					else	
+					{	
+						isUniqueLabel = false;
+						break;
+					}
+				}
+				if(isUniqueLabel && abs(neiLabel[i]-neiLabel[0])>0)
+				{
+					auto neiplHd = shl.GetNeighborPolygon(plHd,i-1);
+					uniquelyLabeledPolygons.push_back(neiplHd);
+					sum+=1;
+					if(sum>=2)
+						break;
+				}
+			}
+			if(sum>=2)
+			{
+				// find common vertex of uniquelyLabeled Polygons;
+				auto plVtHd=shl.GetPolygonVertex(plHd);
+				if(3<=plVtHd.GetN())
+				{
+					std::vector <YsShell::VertexHandle>
+					for(int i=0;i<uniquelyLabeledPolygons.size();i++)
+					{
+						auto neiplVtHd=shl.GetPolygonVertex(uniquelyLabeledPolygons[i]);
+						if(3<=neiplVtHd.GetN())
+						{
+						}
+					}
+				}
+			
+				/*if(3<=plVtHd.GetN())
+				{
+					std::vector<float> plHdVtx;
+					for(int i=0;i<plVtHd.GetN();i++)
+					{
+						auto vtPos = shl.getVertexPosition(plVtHd[i]);
+						plHdVtx.push_back(vtPos.xf());
+						plHdVtx.push_back(vtPos.yf());
+						plHdVtx.push_back(vtPos.yf());
+					}
+					std::vector<std::vector<float> > neiplHdVtx;
+					for(int i=0;i<numNeighbours;i++)
+					{
+						auto neiplHd = shl.GetNeighborPolygon(plHd,i-1);
+						auto neiplVtHd=shl.GetPolygonVertex(neiplHd);
+						if(3<=neiplVtHd.GetN())
+						{
+							std::vector<float> tempNeiplHdVtx;
+							for(int i=0;i<neiplVtHd.GetN();i++)
+							{
+								auto vtPos = shl.getVertexPosition(neiplVtHd[i]);
+								tempNeiplHdVtx.push_back(vtPos.xf());
+								tempNeiplHdVtx.push_back(vtPos.yf());
+								tempNeiplHdVtx.push_back(vtPos.yf());
+							}
+							neiplHdVtx.push_back(tempNeiplHdVtx);
+						}
+					}
+				}*/
+			}
+		}			
 	}
 }
 // Need to be changed since it does not have all the colours or the 4 colour mapping

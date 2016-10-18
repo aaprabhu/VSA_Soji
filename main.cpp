@@ -263,10 +263,10 @@ void FsLazyWindowApplication::generateProxyAssociatedTriangle()
 						tempVsa.setProxyTestLabel(vsa.getProxyTestLabel());
 						queue.push_back(tempVsa);
 					}
-					else
-					{
-						printf("There does not exist a neighhbour for this polygon\n");
-					}
+				}
+                else
+				{
+					printf("There does not exist a neighhbour for this polygon\n");
 				}
 			}
 		}
@@ -443,7 +443,7 @@ void FsLazyWindowApplication::findAnchorVertices()
     // Create a Hashtable , if it is not included then add to a vector , get the count of the vector to get the unique labels
 	for(auto plHd: shl.AllPolygon())
 	{
-		if(*polygonToLabel[shl.GetSearchKey(plHd)]==-1)
+		if(*polygonToLabel[shl.GetSearchKey(plHd)]!=-1)
 		{
 			// Get the number of neighbours
 			const int numNeighbours =  shl.GetPolygonNumVertex(plHd);
@@ -742,6 +742,8 @@ FsLazyWindowApplication::FsLazyWindowApplication()
 	}
 	shl.EnableSearch();
 	makeCluster();
+    findAnchorVertices();
+    printf("size: %d\n",anchorVtx.size());
 	CacheBoundingBox();
 }
 /* virtual */ void FsLazyWindowApplication::GetOpenWindowOption(FsOpenWindowOption &opt) const

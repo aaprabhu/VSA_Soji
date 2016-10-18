@@ -1,45 +1,44 @@
 
 #include "Proxy.h"
-
 Proxy::Proxy()
 {
-	prxyNumber = 0;
-	plHd = nullptr;	
+	prxNumber = -1;
+	poly =nullptr;
 }
+
 Proxy::~Proxy()
 {
-
-	prxyNumber = 0;
-	plHd = nullptr;
-}
-void Proxy::setNumber(int incomingNumber) 
-{
-    prxyNumber=incomingNumber;
-}
-const int Proxy::getNumber() const
-{
-    return prxyNumber;
+	prxNumber = -1;
+	poly =nullptr;
 }
 
-const YsShell::PolygonHandle Proxy::getPolygon() const
-{
-	return plHd;
+void Proxy::setNumber(int incomingNumber){
+    prxNumber = incomingNumber;
 }
 
-void Proxy::setPolygon(YsShell::PolygonHandle pl)
+int Proxy::getNumber() const
 {
-	plHd = pl;
+    return prxNumber;
+}
+void Proxy::setPolygon(YsShell::PolygonHandle &incomingPolygon)
+{
+    poly = incomingPolygon;
 }
 
+YsShell::PolygonHandle Proxy::getPolygon() const
+{
+    return poly;
+}
 bool Proxy::operator==(Proxy op2)
 {
-	if(this->plHd!=op2.getPolygon())
+	if (this->getNumber()!=op2.getNumber())
 	{
 		return false;
 	}
-	if(this->prxyNumber!=op2.getNumber())
+	if (this->getPolygon()!=op2.getPolygon())
 	{
 		return false;
 	}
-	return false;
+	return true;
 }
+

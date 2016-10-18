@@ -1,21 +1,19 @@
-#ifndef PROXY_IS_INCLUDED
-#define PROXY_IS_INCLUDED
+#ifndef Proxy_IS_INCLUDED
+#define Proxy_IS_INCLUDED
 #include "ysshell.h"
 
 class Proxy {
 private:
-    int prxyNumber;
-	YsShell::PolygonHandle plHd;
+    int prxNumber;
+	YsShell::PolygonHandle poly;
 public:
     Proxy();
     ~Proxy();
     void setNumber(int incomingNumber);
-    const int getNumber() const;
-	const YsShell::PolygonHandle getPolygon() const;	
-	void setPolygon(YsShell::PolygonHandle pl);
+    int getNumber() const;
+    void setPolygon(YsShell::PolygonHandle &incomingPolygon);
+    YsShell::PolygonHandle getPolygon() const;
 	bool operator==(Proxy op2);
 };
-
-
 
 #endif

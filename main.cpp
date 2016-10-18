@@ -82,7 +82,7 @@ public:
 	void makeCluster();
 	void updateColour();
 	bool checkIfHashTableFilled();
-	void findAnchorVertices()
+	void findAnchorVertices();
 
 
 	// Inclas function
@@ -124,8 +124,10 @@ void FsLazyWindowApplication::makeInitialProxies(void)
 	{
 		polyhd.push_back(plHd);
 	}
+    proxy.clear();
 	// Clear the visited Hashtable
 	visited.CleanUp();
+    std::vector<YsShell::PolygonHandle> differPoly;
 	// For each Proxy
 	for (int i = 0; i < numberOfProxies;)
 	{
@@ -133,8 +135,16 @@ void FsLazyWindowApplication::makeInitialProxies(void)
 		int l = rand()%n;
 		// Get the random Polygon
 		auto plHd = polyhd[l];
+        bool unique = true;
+		for (int j = 0; j < differPoly.size(); j++)
+		{
+			if (acos(shl.GetNormal(differPoly[j])*shl.GetNormal(plHd))<75*YsPi/180.0)
+			{
+                unique=false;
+			}
+		}
 		// IF it is included or is a nullptr, then find another polygon
-		if (YSTRUE!=visited.IsIncluded(plHd) && plHd!=nullptr)
+		if (YSTRUE!=visited.IsIncluded(plHd) && plHd!=nullptr && unique)
 		{
 			// If it is not included and is not  a nullptr
 			// Add it to the visited list
@@ -149,6 +159,7 @@ void FsLazyWindowApplication::makeInitialProxies(void)
 			temppoly.push_back(plHd);
 			// Push it to the gobal proxy
 			proxy.push_back(tempProxy);
+            differPoly.push_back(plHd);
 			// Go to the next proxy
 			i++;			
 		}
@@ -278,13 +289,13 @@ std::vector<Proxy> FsLazyWindowApplication::getNewProxies()
 	newProxies.resize(numberOfProxies);
 	// Data Structure to store the sum of normals of all the polygons in each proxy
 	std::vector<YsVec3> normalSum;
-	normalSum.resize(numberOfProxies);
+	normalSum.resize(numberOfProxies,YsVec3(0.0,0.0,0.0));
 	// Data Structure to store the sum of Areas of all the polygons in each proxy
 	std::vector<double> areaSum;
 	areaSum.resize(numberOfProxies);
 	// Data Structure to sotre the sum of centre of all the polygons in each proxy
 	std::vector<YsVec3> centreSum;
-	centreSum.resize(numberOfProxies);
+	centreSum.resize(numberOfProxies,YsVec3(0.0,0.0,0.0));
 	// Data Structure for storing the number of polygons in each proxy
 	std::vector<int> countSum;
 	countSum.resize(numberOfProxies);
@@ -297,9 +308,9 @@ std::vector<Proxy> FsLazyWindowApplication::getNewProxies()
 		if(polygonToLabel[shl.GetSearchKey(plHd)]!=nullptr)
 		{
 			int loc = *polygonToLabel[shl.GetSearchKey(plHd)];
-			normalSum[loc]+=shl.GetNormal(plHd);
-			areaSum[loc]+=shl.GetPolygonArea(plHd);
-			centreSum[loc]+=shl.GetCenter(plHd);
+			normalSum[loc]=normalSum[loc]+shl.GetNormal(plHd);
+			areaSum[loc]=areaSum[loc]+shl.GetPolygonArea(plHd);
+			centreSum[loc]=centreSum[loc]+shl.GetCenter(plHd);
 			countSum[loc]++;
 		}
 		else
@@ -310,8 +321,8 @@ std::vector<Proxy> FsLazyWindowApplication::getNewProxies()
 	// Get the representation of new Proxies
 	for (int i = 0; i < numberOfProxies; i++)
 	{
-		normalSum[i]/=areaSum[i];
-		centreSum[i]/=countSum[i];
+		normalSum[i]=normalSum[i]/areaSum[i];
+		centreSum[i]=centreSum[i]/countSum[i];
 	}
 	for (int i = 0; i < normalSum.size(); i++)
 	{
@@ -428,17 +439,16 @@ void FsLazyWindowApplication::makeCluster(void)
 }
 void FsLazyWindowApplication::findAnchorVertices()
 {
-	for(auto plhd: shl.AllPolygon())
+    // Quicker way
+    // Create a Hashtable , if it is not included then add to a vector , get the count of the vector to get the unique labels
+	for(auto plHd: shl.AllPolygon())
 	{
-		if(*polygonToLabel[shl.GetSearchKey(plHd]==-1)
+		if(*polygonToLabel[shl.GetSearchKey(plHd)]==-1)
 		{
 			// Get the number of neighbours
 			const int numNeighbours =  shl.GetPolygonNumVertex(plHd);
-			int neiLabel[numNeighbours + 1];
-			for(int i=0;i<numNeighbours+1;i++)
-			{
-				neiLabel[i] = -1;
-			}
+			std::vector <int> neiLabel;
+            neiLabel.resize(numNeighbours+1,-1);
 			neiLabel[0] = *polygonToLabel[shl.GetSearchKey(plHd)];
 			// For each neighbours
 			for(int j=0;j<numNeighbours;j++)
@@ -479,49 +489,42 @@ void FsLazyWindowApplication::findAnchorVertices()
 			{
 				// find common vertex of uniquelyLabeled Polygons;
 				auto plVtHd=shl.GetPolygonVertex(plHd);
+                bool doNotAdd = false;
+                YsShell::VertexHandle commonVtxHd;
 				if(3<=plVtHd.GetN())
 				{
-					std::vector <YsShell::VertexHandle>
-					for(int i=0;i<uniquelyLabeledPolygons.size();i++)
+                    for(int j=0;j<plVtHd.GetN();j++)
 					{
-						auto neiplVtHd=shl.GetPolygonVertex(uniquelyLabeledPolygons[i]);
-						if(3<=neiplVtHd.GetN())
-						{
-						}
+					    for(int i=0;i<uniquelyLabeledPolygons.size();i++)
+					    {
+						    auto neiplVtHd=shl.GetPolygonVertex(uniquelyLabeledPolygons[i]);
+						    if(3<=neiplVtHd.GetN())
+						    {
+                                if(plVtHd[j] == neiplVtHd[0])
+                                    commonVtxHd = neiplVtHd[0];
+							    else if(plVtHd[j] == neiplVtHd[1])
+                                    commonVtxHd = neiplVtHd[1];
+							    else if (plVtHd[j] == neiplVtHd[2])
+                                    commonVtxHd = neiplVtHd[2];
+							    else
+							    {
+                                    doNotAdd = true;
+                                    printf("common vertex not found\n");
+							    }
+						    }
+					    }
+                        if(doNotAdd==false)
+				        {
+                            anchorVtx.push_back(commonVtxHd);
+				        }
 					}
 				}
-			
-				/*if(3<=plVtHd.GetN())
-				{
-					std::vector<float> plHdVtx;
-					for(int i=0;i<plVtHd.GetN();i++)
-					{
-						auto vtPos = shl.getVertexPosition(plVtHd[i]);
-						plHdVtx.push_back(vtPos.xf());
-						plHdVtx.push_back(vtPos.yf());
-						plHdVtx.push_back(vtPos.yf());
-					}
-					std::vector<std::vector<float> > neiplHdVtx;
-					for(int i=0;i<numNeighbours;i++)
-					{
-						auto neiplHd = shl.GetNeighborPolygon(plHd,i-1);
-						auto neiplVtHd=shl.GetPolygonVertex(neiplHd);
-						if(3<=neiplVtHd.GetN())
-						{
-							std::vector<float> tempNeiplHdVtx;
-							for(int i=0;i<neiplVtHd.GetN();i++)
-							{
-								auto vtPos = shl.getVertexPosition(neiplVtHd[i]);
-								tempNeiplHdVtx.push_back(vtPos.xf());
-								tempNeiplHdVtx.push_back(vtPos.yf());
-								tempNeiplHdVtx.push_back(vtPos.yf());
-							}
-							neiplHdVtx.push_back(tempNeiplHdVtx);
-						}
-					}
-				}*/
 			}
-		}			
+		}
+		else
+		{
+            printf("some polygon has label -1\n");
+		}
 	}
 }
 // Need to be changed since it does not have all the colours or the 4 colour mapping
@@ -534,7 +537,7 @@ void FsLazyWindowApplication::updateColour(void)
 {
 	for(auto plHd :shl.AllPolygon())
 	{
-		switch (*polygonToLabel[shl.GetSearchKey(plHd)]%5)
+		switch (*polygonToLabel[shl.GetSearchKey(plHd)]%6)
 		{
 		case -1:
 			shl.SetPolygonColor(plHd,YsWhite());
@@ -784,7 +787,7 @@ FsLazyWindowApplication::FsLazyWindowApplication()
 	}
 	if(FSKEY_Q==key)
 	{
-		generateProxyAssociatedTriangle();
+		makeCluster();
 	}
 	needRedraw=true;
 }

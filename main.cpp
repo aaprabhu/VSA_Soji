@@ -100,6 +100,7 @@ public:
 	void updateColour();
 	bool checkIfHashTableFilled();
 	void findAnchorVertices();
+	void EdgeExtraction();
 
 
 	// Inclas function
@@ -783,8 +784,50 @@ void FsLazyWindowApplication::updateColour(void)
 	YsShellToVtxNom(vtx,nom,col,shl);
 }
 
+void FsLazyWindowApplication::EdgeExtraction()
+{
+	for (int i = 0; i <numberOfProxies; i++)
+	{
+		if(proxyToEdge[proxy[i]]!=nullptr)
+		{
+			auto edges = *proxyToEdge[proxy[i]];
+			for (int j = 0; j <edges.size(); j++)
+			{
+				auto currEdges = edges[i];
+				YsShell::VertexHandle a = currEdges[0];
+				YsShell::VertexHandle b = currEdges[currEdges.size()-1];
+				double d = 0.0;
+				int maxk = -1;
+				auto aVtx = shl.GetVertexPosition(a);
+				auto bVtx = shl.GetVertexPosition(b);
+				auto chord = bVtx-aVtx;
+				for (int k = 0; k < currEdges.size(); k++)
+				{
+					auto hyp = aVtx - shl.GetVertexPosition(currEdges[k]);
+					auto theta = acos((hyp*(chord))/(hyp.GetLength()*chord.GetLength()));
+					if (d <fabs(hyp.GetLength()*sin(theta)))
+					{
+						d = fabs(hyp.GetLength()*sin(theta));
+						maxk = k;
+					}
+				}
+				auto numProxies = *vertexToLabel[shl.GetSearchKey(currEdges[1])];
+				if(numProxies.size()==2)
+				{
+					auto Ni = shl.GetNormal(proxy[numProxies[0]].getPolygon());
+					auto Nj = shl.GetNormal(proxy[numProxies[1]].getPolygon());
+					if((d*sin(acos((Ni*Nj)/(Ni.GetLength()*Nj.GetLength())))/chord.GetLength())>0.01)
+					{
 
-
+					}
+				}
+				
+			}
+		}
+		else
+			printf("edges dont exist!\n");
+	}
+}
 // FsLazyWindow functions
 void FsLazyWindowApplication::CacheBoundingBox(void)
 {
@@ -1085,6 +1128,7 @@ FsLazyWindowApplication::FsLazyWindowApplication()
 		renderer.DrawVtx(GL_POINTS,edgepoints.size()/3,edgepoints.data());
 
 	}
+	/*
 	YsMatrix4x4 shadowMat;
 	shadowMat.Translate(0.0,-12.0,0.0);
 	shadowMat.Scale(1.0,0.0,1.0);
@@ -1100,6 +1144,7 @@ FsLazyWindowApplication::FsLazyWindowApplication()
 		renderer.SetUniformColor(color);
 		renderer.DrawVtx(GL_TRIANGLES,vtx.size()/3,vtx.data());
 	}
+	*/
 
 
 	FsSwapBuffers();

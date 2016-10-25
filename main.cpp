@@ -40,6 +40,11 @@ protected:
 	YsShellExt shl;
 	std::vector <float> vtx,nom;
 	std::vector <float> col;
+
+	// For diplaying the output
+	std::vector<float> edgepoints;
+	std::vector<float> anchorpoints;
+	std::vector<float> edges;
 	YsVec3 min,max;
 
 
@@ -48,9 +53,16 @@ protected:
 	std::vector<Proxy> proxy;
 	std::vector<YsShell::PolygonHandle>temppoly;
 	std::vector<YsShell::VertexHandle>anchorVtx;
+	std::vector<YsShell::VertexHandle>edgeVtx;
 	int numberOfProxies;
 	HashTable <Proxy,std::vector <YsShell::PolygonHandle> > proxyToTriangles;
+	HashTable <Proxy,std::vector <YsShell::VertexHandle> > proxyToVertex;
+	HashTable <YSHASHKEY,int> edgeVertexPresence;
+	HashTable <Proxy,std::vector <std::vector<YsShell::VertexHandle>> > proxyToEdge;
 	HashTable <YSHASHKEY,int> polygonToLabel;
+	HashTable <YSHASHKEY,std::vector<int>> vertexToLabel;
+	std::vector<YsShell::PolygonHandle> polyhd;
+
 	
 
 
@@ -70,15 +82,20 @@ public:
 	static void VtxNomToYsShell(YsShellExt &shl,const std::vector <float> &vtx,const std::vector <float> &nom);
 	static void YsShellToVtxNom(std::vector <float> &vtx,std::vector <float> &nom,std::vector <float> &col,const YsShellExt &shl);
 
-	// Llyod Clustering
-	void makeInitialProxies();
+
+	// Global 
 	double calculateError(YsShell::PolygonHandle plHd,Proxy pxy);
 	double calculateAngle(YsShell::PolygonHandle plHd,YsVec3 normal);
 	void setupPolygonToLabelHashTable();
+	// Llyod Clustering
+	void makeInitialProxies();
 	void generateProxyAssociatedTriangle();
 	std::vector<Proxy> getNewProxies();
 	bool checkConvergence(std::vector<Proxy> newProxies);
-	void setupProxyToPolygonHashTable();
+	void populateProxyHashTables();
+	void populateProxyToPolygonHashTable();
+	void populateProxyToVertexHashTable();
+	void populateProxyToEdgeHashTable();
 	void makeCluster();
 	void updateColour();
 	bool checkIfHashTableFilled();
@@ -98,15 +115,31 @@ public:
 	virtual long long int GetMinimumSleepPerInterval(void) const;
 	virtual bool NeedRedraw(void) const;
 };
-// Hashcode for the Hastables 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//  Hashtable Template Specifications
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template <>
 unsigned long long int HashTable<Proxy,std::vector<YsShell::PolygonHandle>>::HashCode(const Proxy &key) const
 {		
 	return key.getNumber();
 }
-
+template <>
+unsigned long long int HashTable<Proxy,std::vector<YsShell::VertexHandle>>::HashCode(const Proxy &key) const
+{		
+	return key.getNumber();
+}
+template <>
+unsigned long long int HashTable<Proxy,std::vector<std::vector<YsShell::VertexHandle>>>::HashCode(const Proxy &key) const
+{		
+	return key.getNumber();
+}
 template <>
 unsigned long long int HashTable<YSHASHKEY,int>::HashCode(const YSHASHKEY &key) const
+{		
+	return key;
+}
+template <>
+unsigned long long int HashTable<YSHASHKEY,std::vector<int>>::HashCode(const YSHASHKEY &key) const
 {		
 	return key;
 }
@@ -117,7 +150,7 @@ void FsLazyWindowApplication::makeInitialProxies(void)
 	srand(time(NULL));
 	// Create the hashtable to check the visited polygons
 	YsShellPolygonStore visited(shl.Conv());
-	std::vector<YsShell::PolygonHandle> polyhd;
+	polyhd.clear();
 	int n = shl.GetNumPolygon();
 	// Create an array that contains all the polygons
 	for(auto plHd:shl.AllPolygon())
@@ -361,32 +394,212 @@ bool FsLazyWindowApplication::checkConvergence(std::vector<Proxy> newProxies)
 	}
 	return true;
 }
-
-void FsLazyWindowApplication::setupProxyToPolygonHashTable(void)
+void FsLazyWindowApplication::populateProxyToPolygonHashTable(void)
 {
-	// After all the iterations have been done we need to make a hashtable of Proxy to Polygon
-	for(auto plHd:shl.AllPolygon())
+	std::vector<std::vector<YsShell::PolygonHandle>> proxyToPoly;
+	proxyToPoly.resize(numberOfProxies);
+	// Create the Table of Proxies to Polgons
+	for(auto plHd : shl.AllPolygon())
 	{
-		if(polygonToLabel[shl.GetSearchKey(plHd)]!=nullptr)
+		int loc  = *polygonToLabel[shl.GetSearchKey(plHd)];
+		proxyToPoly[loc].push_back(plHd);
+	}
+	// Use this table to populate the Proxy to Polygon Hashtable
+	for (int i = 0; i < numberOfProxies; i++)
+	{
+		proxyToTriangles.Update(proxy[i],proxyToPoly[i]);
+	}
+	printf("ProxyToPolygon mapping is Complete\n");
+}
+void FsLazyWindowApplication::populateProxyToVertexHashTable(void)
+{
+	for(auto plHd : shl.AllPolygon())
+	{
+		int loc  = *polygonToLabel[shl.GetSearchKey(plHd)];
+		auto plVtHd = shl.GetPolygonVertex(plHd);
+		// Setup the data need for Proxies to vertex
+		for (int i = 0; i < plVtHd.GetN(); i++)
 		{
-			int localPxy =*polygonToLabel[shl.GetSearchKey(plHd)];
-			if (proxyToTriangles[proxy[localPxy]]==nullptr)
+			if (vertexToLabel[shl.GetSearchKey(plVtHd[i])]==nullptr)
 			{
-				printf("%d th proxy was empty assigning a std::vector now");
-				std::vector<YsShell::PolygonHandle> triangles;
-				triangles.push_back(plHd);
-				proxyToTriangles.Update(proxy[localPxy],triangles);
+				std::vector<int> newPorxyNumber;
+				newPorxyNumber.push_back(loc);
+				vertexToLabel.Update(shl.GetSearchKey(plVtHd[i]),newPorxyNumber);
 			}
 			else
 			{
-				proxyToTriangles[proxy[localPxy]]->push_back(plHd);
+				auto oldProxyNumber = *vertexToLabel[shl.GetSearchKey(plVtHd[i])];
+				if ( std::find(oldProxyNumber.begin(), oldProxyNumber.end(), loc) != oldProxyNumber.end() )
+				{
+					// Do not do anything since it already exists
+				}
+				else
+				{
+					oldProxyNumber.push_back(loc);
+					if (oldProxyNumber.size()==3)
+					{
+						anchorVtx.push_back(plVtHd[i]);
+						{
+							// For diplaying the Anchor points
+							anchorpoints.push_back(shl.GetVertexPosition(plVtHd[i]).xf());
+							anchorpoints.push_back(shl.GetVertexPosition(plVtHd[i]).yf());
+							anchorpoints.push_back(shl.GetVertexPosition(plVtHd[i]).zf());
+						}
+					}
+					if (oldProxyNumber.size()==2)
+					{
+						if (!(edgeVertexPresence.IsIncluded(shl.GetSearchKey(plVtHd[i]))))
+						{
+							edgeVertexPresence.Update(shl.GetSearchKey(plVtHd[i]),0);
+							{
+								// For displaying the Edgepoints
+								edgepoints.push_back(shl.GetVertexPosition(plVtHd[i]).xf());
+								edgepoints.push_back(shl.GetVertexPosition(plVtHd[i]).yf());
+								edgepoints.push_back(shl.GetVertexPosition(plVtHd[i]).zf());
+							}
+						}
+					}
+				}
+				vertexToLabel.Update(shl.GetSearchKey(plVtHd[i]),oldProxyNumber);
 			}
 		}
-		else
+	}
+	// Populate the Proxy to Vertex Hashtable
+	std::vector<std::vector<YsShell::VertexHandle>> proxyToVert;
+	proxyToVert.resize(numberOfProxies);
+	for (int i = 0; i < anchorVtx.size(); i++)
+	{
+		auto proxyNumber = *vertexToLabel[shl.GetSearchKey(anchorVtx[i])];
+		for (int j = 0; j < proxyNumber.size(); j++)
 		{
-			printf("You should not be seing this message\n");
+			if (proxyNumber[j]>=numberOfProxies)
+			{
+				printf("This Should not happen\n");
+			}
+			proxyToVert[proxyNumber[j]].push_back(anchorVtx[i]);
 		}
 	}
+	for (int i = 0; i < numberOfProxies; i++)
+	{
+		proxyToVertex.Update(proxy[i],proxyToVert[i]);
+	}
+	printf("ProxyToVertex mapping is Complete\n");
+
+}
+void FsLazyWindowApplication::populateProxyToEdgeHashTable(void)
+{
+	edges.clear();
+	for (int i = 0; i < numberOfProxies; i++)
+	{
+		// Get the Vector of Anchor vertices
+		auto anchorVertices = *proxyToVertex[proxy[i]];
+		// Data for Each Proxy
+		// Hashtable to store the Edge vertices that have already been used
+		// Refreshed everytime a new Proxy is started
+		HashTable<YSHASHKEY,int> usedEdgeVertex;
+		usedEdgeVertex.CleanUp();
+		// Vector of Edges 
+		std::vector<std::vector<YsShell::VertexHandle>> edgeToVertex;
+		// Begin with the first Vertex
+		auto currentAnchorVertex = anchorVertices[0];
+		usedEdgeVertex.Update(shl.GetSearchKey(anchorVertices[0]),0);
+		printf("For the proxy number %d, the number of Anchor Vertices is is %d\n",i,anchorVertices.size());
+		do
+		{
+			//Single edge that is being detected
+			std::vector<YsShell::VertexHandle> edge;
+			edge.clear();
+			edge.push_back(currentAnchorVertex);
+			auto currentEdgeVertex = currentAnchorVertex;
+			//Do not update the hashtable here else the loop will never end
+			/*
+			 If the vertex were to to be added to the hashtable it will be be included in the used vertex and hence when it comes back it will already be a used one and will never be picked up
+			 by the algorithm and the edge will never complete
+			*/
+			bool notFoundNewAnchor = true;
+			do
+			{
+				auto connVtHd = shl.GetConnectedVertex(currentEdgeVertex);
+				// Get connected vertices
+				for(auto conn: connVtHd)
+				{
+					bool foundConnection = false;
+					if (foundConnection)
+					{
+						printf("It was true\n");
+					}
+					if ((edgeVertexPresence.IsIncluded(shl.GetSearchKey(conn))) && (!usedEdgeVertex.IsIncluded(shl.GetSearchKey(conn))))
+					{
+						auto polyArray = shl.FindPolygonFromEdgePiece(currentEdgeVertex,conn);
+						if (polyArray.GetN()>2)
+						{
+							printf("This is not possible!!!\n");
+						}
+						int count =0;
+						for (int j = 0; j < polyArray.GetN(); j++)
+						{
+							printf("Label Number is %d\n",*polygonToLabel[shl.GetSearchKey(polyArray[j])]);
+							if ((i==*polygonToLabel[shl.GetSearchKey(polyArray[j])]) &&(*polygonToLabel[shl.GetSearchKey(polyArray[j])] != *polygonToLabel[shl.GetSearchKey(polyArray[(j+1)%2])]))
+							{
+								//printf("Label Number is now%d\n",*polygonToLabel[shl.GetSearchKey(polyArray[j])]);
+
+								edge.push_back(conn);
+								{
+									edges.push_back(shl.GetVertexPosition(currentEdgeVertex).xf());
+									edges.push_back(shl.GetVertexPosition(currentEdgeVertex).yf());
+									edges.push_back(shl.GetVertexPosition(currentEdgeVertex).zf());
+
+									edges.push_back(shl.GetVertexPosition(conn).xf());
+									edges.push_back(shl.GetVertexPosition(conn).yf());
+									edges.push_back(shl.GetVertexPosition(conn).zf());
+								}
+								currentEdgeVertex = conn;
+								usedEdgeVertex.Update(shl.GetSearchKey(conn),0);
+								
+								foundConnection = true;
+								printf("Found Connetion\n");
+								break;
+							}
+						}
+						if (foundConnection)
+						{
+							// Break is really critical here since one anchor vertex can have multiple edges
+							printf("Break was called\n");
+							break;
+						}						
+					}
+				}
+				for (int k = 0; k < anchorVertices.size(); k++)
+				{
+					if (anchorVertices[k]==currentEdgeVertex)
+					{
+						notFoundNewAnchor = false;
+						currentAnchorVertex = currentEdgeVertex;
+						break;
+					}
+				}
+				
+			} while (notFoundNewAnchor);
+			printf("New Edge Detected\n");
+			edgeToVertex.push_back(edge);
+			if (edgeToVertex.size()>1)
+			{
+				usedEdgeVertex.Delete(shl.GetSearchKey(anchorVertices[0]));
+			}
+		//(Depends onthe Number of anchor vertices since number of Vertices = number of Edge)
+		} while (edgeToVertex.size()<anchorVertices.size());
+		printf("For the proxy number %d, the number of edges is %d\n",i,edgeToVertex.size());
+		proxyToEdge.Update(proxy[i],edgeToVertex);
+	}
+	printf("ProxyToEdge mapping is Complete\n");
+	printf("Number of edges is %d\n",edges.size());
+
+}
+void FsLazyWindowApplication::populateProxyHashTables(void)
+{
+	populateProxyToPolygonHashTable();
+	populateProxyToVertexHashTable();
+	populateProxyToEdgeHashTable();
 }
 void FsLazyWindowApplication::makeCluster(void)
 {
@@ -423,109 +636,112 @@ void FsLazyWindowApplication::makeCluster(void)
 	{
 		printf("There is something seriously wrong with the Algorithm and We need to fix it right now !!!!!!!!!!!\n");
 	}
-	std::vector<std::vector<YsShell::PolygonHandle>> proxyToPoly;
-	proxyToPoly.resize(numberOfProxies);
-	// Create the Table of Proxies to Polgons
-	for(auto plHd : shl.AllPolygon())
-	{
-		int loc  = *polygonToLabel[shl.GetSearchKey(plHd)];
-		proxyToPoly[loc].push_back(plHd);
-	}
-	// Use this table to populate the Hashtable
-	for (int i = 0; i < numberOfProxies; i++)
-	{
-		proxyToTriangles.Update(proxy[i],proxyToPoly[i]);
-	}
+	populateProxyHashTables();
+
 }
 void FsLazyWindowApplication::findAnchorVertices()
 {
     // Quicker way
+	int count = 0;
     // Create a Hashtable , if it is not included then add to a vector , get the count of the vector to get the unique labels
-	for(auto plHd: shl.AllPolygon())
+	if (checkIfHashTableFilled())
 	{
-		if(*polygonToLabel[shl.GetSearchKey(plHd)]!=-1)
-		{
-			// Get the number of neighbours
-			const int numNeighbours =  shl.GetPolygonNumVertex(plHd);
-			std::vector <int> neiLabel;
-            neiLabel.resize(numNeighbours+1,-1);
-			neiLabel[0] = *polygonToLabel[shl.GetSearchKey(plHd)];
-			// For each neighbours
-			for(int j=0;j<numNeighbours;j++)
+			for(auto plHd: shl.AllPolygon())
 			{
-				// Get the neighbours
-				auto neiplHd = shl.GetNeighborPolygon(plHd,j);
-				if (neiplHd!=nullptr)
-				{	
-					neiLabel[j+1] = *polygonToLabel[shl.GetSearchKey(neiplHd)];	
-				}
-			}
-			int sum=0;
-			std::vector <YsShell::PolygonHandle> uniquelyLabeledPolygons;
-			uniquelyLabeledPolygons.push_back(plHd);
-			for(int i=1;i<numNeighbours+1;i++)
-			{
-				bool isUniqueLabel = true;
-				for(int j=1;j<i;j++)
+				if(*polygonToLabel[shl.GetSearchKey(plHd)]!=-1)
 				{
-					if(neiLabel[i]!=neiLabel[j])
-						isUniqueLabel = true;
-					else	
-					{	
-						isUniqueLabel = false;
-						break;
-					}
-				}
-				if(isUniqueLabel && abs(neiLabel[i]-neiLabel[0])>0)
-				{
-					auto neiplHd = shl.GetNeighborPolygon(plHd,i-1);
-					uniquelyLabeledPolygons.push_back(neiplHd);
-					sum+=1;
-					if(sum>=2)
-						break;
-				}
-			}
-			if(sum>=2)
-			{
-				// find common vertex of uniquelyLabeled Polygons;
-				auto plVtHd=shl.GetPolygonVertex(plHd);
-                bool doNotAdd = false;
-                YsShell::VertexHandle commonVtxHd;
-				if(3<=plVtHd.GetN())
-				{
-                    for(int j=0;j<plVtHd.GetN();j++)
+					// Get the number of neighbours
+					const int numNeighbours =  shl.GetPolygonNumVertex(plHd);
+					if (numNeighbours>3)
 					{
-					    for(int i=0;i<uniquelyLabeledPolygons.size();i++)
-					    {
-						    auto neiplVtHd=shl.GetPolygonVertex(uniquelyLabeledPolygons[i]);
-						    if(3<=neiplVtHd.GetN())
-						    {
-                                if(plVtHd[j] == neiplVtHd[0])
-                                    commonVtxHd = neiplVtHd[0];
-							    else if(plVtHd[j] == neiplVtHd[1])
-                                    commonVtxHd = neiplVtHd[1];
-							    else if (plVtHd[j] == neiplVtHd[2])
-                                    commonVtxHd = neiplVtHd[2];
-							    else
-							    {
-                                    doNotAdd = true;
-                                    printf("common vertex not found\n");
-							    }
-						    }
-					    }
-                        if(doNotAdd==false)
-				        {
-                            anchorVtx.push_back(commonVtxHd);
-				        }
+						printf("Number of Neighbours are more than 3, Impossible\n");
+					}
+					std::vector <int> neiLabel;
+					neiLabel.resize(numNeighbours+1,-1);
+					neiLabel[0] = *polygonToLabel[shl.GetSearchKey(plHd)];
+					// For each neighbours
+					for(int j=0;j<numNeighbours;j++)
+					{
+						// Get the neighbours
+						auto neiplHd = shl.GetNeighborPolygon(plHd,j);
+						if (neiplHd!=nullptr)
+						{	
+							neiLabel[j+1] = *polygonToLabel[shl.GetSearchKey(neiplHd)];	
+						}
+					}
+
+					int sum=0;
+					std::vector <YsShell::PolygonHandle> uniquelyLabeledPolygons;
+					uniquelyLabeledPolygons.push_back(plHd);
+					for(int i=1;i<numNeighbours+1;i++)
+					{
+						bool isUniqueLabel = true;
+						for(int j=1;j<i;j++)
+						{
+							if(neiLabel[i]!=neiLabel[j])
+								isUniqueLabel = true;
+							else	
+							{	
+								isUniqueLabel = false;
+								break;
+							}
+						}
+						if(isUniqueLabel && abs(neiLabel[i]-neiLabel[0])>0)
+						{
+							auto neiplHd = shl.GetNeighborPolygon(plHd,i-1);
+							uniquelyLabeledPolygons.push_back(neiplHd);
+							sum+=1;
+							if(sum>=2)
+								break;
+						}
+					}
+
+					if(sum>=2)
+					{
+						count++;
+						printf("Possible Anchor vertex %d\n",count);
+						// find common vertex of uniquelyLabeled Polygons;
+						auto plVtHd=shl.GetPolygonVertex(plHd);
+						bool doNotAdd = false;
+						YsShell::VertexHandle commonVtxHd;
+						if(3<=plVtHd.GetN())
+						{
+							for(int j=0;j<plVtHd.GetN();j++)
+							{
+								for(int i=0;i<uniquelyLabeledPolygons.size();i++)
+								{
+									auto neiplVtHd=shl.GetPolygonVertex(uniquelyLabeledPolygons[i]);
+									if(3<=neiplVtHd.GetN())
+									{
+										
+										if(plVtHd[j] == neiplVtHd[0])
+											commonVtxHd = neiplVtHd[0];
+										else if(plVtHd[j] == neiplVtHd[1])
+											commonVtxHd = neiplVtHd[1];
+										else if (plVtHd[j] == neiplVtHd[2])
+											commonVtxHd = neiplVtHd[2];
+										else
+										{
+											doNotAdd = true;
+											printf("common vertex not found\n");
+										}
+									}
+								}
+								if(doNotAdd==false)
+								{
+									anchorVtx.push_back(commonVtxHd);
+								}
+							}
+						}
 					}
 				}
+				else
+				{
+					printf("some polygon has label -1\n");
+				}
 			}
-		}
-		else
-		{
-            printf("some polygon has label -1\n");
-		}
 	}
+
 }
 // Need to be changed since it does not have all the colours or the 4 colour mapping
 
@@ -742,7 +958,7 @@ FsLazyWindowApplication::FsLazyWindowApplication()
 	}
 	shl.EnableSearch();
 	makeCluster();
-    findAnchorVertices();
+    //findAnchorVertices();
     printf("size: %d\n",anchorVtx.size());
 	CacheBoundingBox();
 }
@@ -832,9 +1048,43 @@ FsLazyWindowApplication::FsLazyWindowApplication()
 		renderer.SetProjection(projMat);
 		renderer.SetModelView(viewMat);
 		renderer.SetLightDirectionInCameraCoordinate(0,lightDir);
-
 		renderer.DrawVtxNomCol(GL_TRIANGLES,vtx.size()/3,vtx.data(),nom.data(),col.data());
 	}	
+
+	{
+		YsGLSLPlain3DRenderer renderer;  // Again, do not nest the renderer!
+		renderer.SetProjection(projMat);
+		renderer.SetModelView(viewMat);
+		GLfloat color[4]={1,1,0,1};
+		renderer.SetUniformColor(color);
+		glPointSize(8);
+		renderer.DrawVtx(GL_POINTS,anchorpoints.size()/3,anchorpoints.data());
+
+	}
+	{
+		YsGLSLPlain3DRenderer renderer;  // Again, do not nest the renderer!
+		renderer.SetProjection(projMat);
+		renderer.SetModelView(viewMat);
+		glLineWidth(3); 
+		GLfloat color[4]={1,0,0,1};
+		renderer.EnableZOffset(); 
+		renderer.SetZOffset(-0.0003); 
+		renderer.SetUniformColor(color); 
+		renderer.DrawVtx(GL_LINES,edges.size()/3,edges.data());
+		renderer.DisableZOffset();
+
+	}
+	{
+		YsGLSLPlain3DRenderer renderer;  // Again, do not nest the renderer!
+		renderer.SetProjection(projMat);
+		renderer.SetModelView(viewMat);
+
+		GLfloat color[4]={1,1,1,1};
+		renderer.SetUniformColor(color);
+		glPointSize(4);
+		renderer.DrawVtx(GL_POINTS,edgepoints.size()/3,edgepoints.data());
+
+	}
 	YsMatrix4x4 shadowMat;
 	shadowMat.Translate(0.0,-12.0,0.0);
 	shadowMat.Scale(1.0,0.0,1.0);
